@@ -1,222 +1,163 @@
-#include <bits/stdc++.h>
+#include <iostream>
+#include <bitset>
+#include <vector>
+#include <array>
+
 using namespace std;
 
-int sheesh(int a[], int n);
-void unsheesh(int a[], int i, int n);
-void printPerm(int a[], int n);
-void mult(int a[], int b[], int c[], int n);
-int multSheesh(int sheesha, int sheeshb, int n);
+const uint32_t MAX_ORDER = 32;
+using bitset32 = bitset<MAX_ORDER>;
 
-const int MAX_N = 8;
-const int MAX_LEN = 8*7*6*5*4*3*2;
+class Permutation
+{
+private:
+  uint32_t ORDER;
+  vector<uint32_t> perm_value;
 
-int main() {
-  bool a[MAX_LEN];
-  int n;
-  cout << "n = ";
-  cin >> n;
-  int len = 1;
-  for(int i=1; i<=n; i++)
-    len *= i;
-  memset(a, false, MAX_LEN);
-  int m;
-  cout << "Сколько порождающих элементов дано? ";
-  cin >> m;
-  cout << "Введите их: \n";
-  for(int i=0; i<m; i++) {
-    cout << "Введите очередной элемент: \n";
-    int tmpel[MAX_N];
-    for(int j=0; j<n; j++) {
-      cin >> tmpel[j];
-      tmpel[j]--;
+public:
+  enum PRINT_METHOD {
+    PRINT_STANDART,
+    PRINT_INDEPENDENT, 
+    PRINT_INDEX
+  };
+    
+
+  explicit Permutation(uint32_t p_ORDER, uint32_t perm_index = 0)
+    : ORDER(p_ORDER)
+  {
+    perm_value.reserve(ORDER);
+
+    vector<uint32_t> Y;
+    Y.reserve(ORDER);
+    uint32_t tmp_uint = perm_index;
+    Y[ORDER-1] = 0;
+    for(uint32_t i=1; i<ORDER; ++i) {
+      Y[ORDER-1-i] = tmp_uint % (i+1);
+      tmp_uint /= i+1;
     }
-    cout << "Его представление в виде независимых циклов: \n";
-    int tmph1 = sheesh(tmpel, n);
-    printPerm(tmpel, n);
-    cout << "\n";
-    a[tmph1] = true;
+
+    bitset32 checked;
+    for(uint32_t i = 0; i < ORDER; ++i) {
+      uint32_t c = 0;
+      uint32_t j;
+      for(j = 0; j < ORDER; ++j) {
+        if(not checked[j] and c == Y[i])
+          break;
+        if(not checked[j])
+          ++c;
+      }
+      checked[j] = true;
+      // perm_value[i] = j;
+      perm_value.push_back(j);
+    }
   }
-  int t = 0;
-  do {
-    t = 0;
-    for(int i=0; i<len; i++) {
-      if(not a[i])
+
+  /* We want to use make bijective mapping between permutations and 
+   * uints for ex.: (1 2 3 4 5 6 ... n) -> 0 and
+   * (n .. 6 5 4 3 2 1) -> n! - 1
+   * just to save it more space-efficient.
+   */
+  uint32_t get_index() const 
+  {
+    /* Why we can't just do for permutaiton (a1 a2 a3 .. an)
+     * a1 * n ^ (ORDER-1) + a2 * n ^ (ORDER-2) + ... + an?
+     * Because, for example we can't have permutation (1 1 1)
+     * so we have much less permutations than ORDER^ORDER
+     *
+     * Firstly, we use the fact that when in permutation 
+     * (a1 a2 a3 .. an)
+     * if a1 == 1: a2, a3 .. an != 1
+     */
+    bitset32 checked;
+    vector<uint32_t> Y;
+    Y.reserve(ORDER);
+    for(uint32_t i=0; i<ORDER; ++i) {
+      uint32_t c = 0;
+      for(uint32_t j=0; j<perm_value[i]; ++j)
+        if(not checked[j])
+          ++c;
+      checked[perm_value[i]] = true;
+      Y[i] = c;
+    }
+
+    /* Now we just make bijective mapping from Y to uints
+     * using factorial notation
+     */
+    uint32_t index = 0;
+    uint32_t factorial = 1;
+    uint32_t j = 1;
+    for(int i = ORDER-2; i >= 0; --i) {
+      index += factorial*Y[i];
+      ++j;
+      factorial *= j;
+    }
+    return index;
+  }
+
+  vector<vector<uint32_t>> to_independent_cycles() const
+  {
+    vector<vector<uint32_t>> result;
+    bitset32 checked;
+    for(uint32_t i = 0; i < ORDER; ++i) {
+      if(checked[i])
         continue;
-      int m1[MAX_N];
-      unsheesh(m1, i, n);
-      for(int j=0; j<len; j++) {
-        if(not a[j])
-          continue;
-        int m2[MAX_N];
-        unsheesh(m2, j, n);
-        int c[MAX_N];
-        mult(m1, m2, c, n);
-        int k = sheesh(c, n);
-        if(not a[k]) {
-          t++;
-          a[k] = true;
-          printPerm(m1, n);
-          cout << " * ";
-          printPerm(m2, n);
-          cout << " = ";
-          printPerm(c, n);
-          cout << "\n";
-        }
+      result.push_back({ i });
+      checked[i] = true;
+      uint32_t j = perm_value[i];
+      while(j != i) {
+        checked[j] = true;
+        result.back().push_back(j);
+        j = perm_value[j];
       }
     }
-  } while(t != 0);
-
-  cout << "\n Our group is: \n";
-  int tmp[MAX_N];
-  for(int i=0; i<len; i++)
-    if(a[i]) {
-      unsheesh(tmp, i, n);
-      printPerm(tmp, n);
-      cout << ", ";
-    }
-  cout << "\n";
-
-  ///*
-  cout << "Center of group: ";
-  int m1[MAX_N];
-  int m2[MAX_N];
-  int c1[MAX_N];
-  int c2[MAX_N];
-  for(int i=0; i<len; i++) {
-    if(not a[i])
-      continue;
-    unsheesh(m1, i, n);
-    bool yes = true;
-    for(int j=0; j<len; j++) {
-      if(not a[j])
-        continue;
-      unsheesh(m2, j, n);
-      mult(m1, m2, c1, n);
-      mult(m2, m1, c2, n);
-      for(int k=0; k<n; k++)
-        if(c1[k] != c2[k]) {
-          yes = false;
-          break;
-        }
-      if(not yes)
-        break;
-    }
-    if(yes) {
-      printPerm(m1, n);
-      cout << ", ";
-    }
-  }
-  cout << "\n";
-  //*/
-} // */
-
-
-int sheesh(int a[], int n) {
-  bool b[MAX_N];
-  int a0[MAX_LEN];
-  memset(b, false, n);
-  for(int i=0; i<n; i++) {
-    int c = 0;
-    for(int j=0; j<a[i]; j++) 
-      if(not b[j])
-        c++;
-    b[a[i]] = true;
-    a0[i] = c;
-  }
-  int h1 = 0;
-  int fac = 1; int j = 1;
-  for(int i=n-2; i>=0; i--) {
-    h1 += fac*a0[i];
-    j++;
-    fac *= j;
-  }
-  return h1;
-}
-void unsheesh(int a1[], int h, int n) {
-  int a0[MAX_N];
-  a0[n-1] = 0;
-  int h1 = h; 
-  for(int i=1; i<n; i++) {
-    a0[n-1-i] = (h1 % (i+1));
-    h1 /= (i+1);
+    return result;
   }
 
-  bool b[MAX_N];
-  memset(b, false, n);
-  for(int i=0; i<n; i++) {
-    int c = 0;
-    int j;
-    for(j=0; j<n; j++) {
-      if(not b[j] and c == a0[i])
-        break;
-      if(not b[j])
-        c++;
+  void print(ostream &os,
+      PRINT_METHOD print_method = PRINT_INDEPENDENT) const
+  {
+    if(print_method == PRINT_INDEPENDENT) {
+      auto undep_cycles = to_independent_cycles();
+      if(undep_cycles.size() == ORDER) {
+        os << "id";
+        return;
+      }
+      for(const auto &cycle : undep_cycles) {
+        if(cycle.size() == 1)
+          continue;
+        os << "(";
+        for(const auto &elem : cycle)
+          os << elem+1;
+        os << ")";
+      }
+    } else if(print_method == PRINT_STANDART) {
+      for(auto elem : perm_value) 
+        os << elem << " ";
+    } else {
+      os << get_index();
     }
-    b[j] = true;
-    a1[i] = j;
+  }
+
+  friend ostream &operator<<(ostream &os, const Permutation &perm)
+  {
+    perm.print(os); 
+    return os;
+  }
+};
+
+int main()
+{
+  uint32_t ORDER = 5;
+  for(uint32_t i = 0; i<5*4*3*2; ++i) {
+    Permutation x{ORDER, i};
+    if(x.get_index() != i) {
+      cout << x << endl;
+      return 1;
+    } 
+    cout << "Permutation ";
+    x.print(cout, Permutation::PRINT_METHOD::PRINT_INDEX);
+    cout << ": ";
+    x.print(cout, Permutation::PRINT_METHOD::PRINT_STANDART);
+    cout << x << endl;
   }
 }
-
-
-void printPerm(int a1[], int n) {
-  // cheching if it is e:
-  bool isE = true;
-  for(int i=0; i<n; i++)
-    if(a1[i] != i) {
-      isE = false;
-      break;
-    }
-  if(isE) {
-    cout << "e";
-    return;
-  }
-  bool checked[MAX_N];
-  memset(checked, false, n);
-  int tmp = -1;
-  for(int i=0; i<n; i++)
-    if(tmp == -1 and a1[i] != i and not checked[i]) {
-      cout << "(" << i+1;
-      checked[i] = true;
-      tmp = i;
-      int start = i;
-      do {
-        tmp = a1[tmp];
-        checked[tmp] = true;
-        cout << " " << (tmp+1);
-      } while (a1[tmp] != start);
-      cout << ")";
-      tmp = -1;
-    }
-}
-
-void mult(int a[], int b[], int c[], int n) {
-  for(int i=0; i<n; i++)
-    c[i] = a[b[i]];
-}
-
-int multSheesh(int sheesha, int sheeshb, int n) {
-  int a[MAX_N];
-  int b[MAX_N];
-  int c[MAX_N];
-  unsheesh(a, sheesha, n);
-  unsheesh(b, sheeshb, n);
-  mult(a, b, c, n);
-  return sheesh(c, n);
-}
-
-/*int testSheesh() {
-  int n = 6;
-  cout << "n = " << n << "\n";
-  bool b[MAX_LEN];
-  for(int i=0; i<6*5*4*3*2; i++) {
-    int a1[MAX_N];
-    cout << i << ": ";    
-    unsheesh(a1, i, n);
-    
-    printPerm(a1, n);
-    cout << "\n";
-    int i1 = sheesh(a1, n);
-    if(i1 != i)
-      cout << "MAY I HAVE UR ATTENTION PLEASE!!! " << i << " " << i1 << "\n\n";
-  }
-}*/
